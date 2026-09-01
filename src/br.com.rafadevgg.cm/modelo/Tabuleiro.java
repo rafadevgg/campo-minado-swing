@@ -2,14 +2,16 @@ package br.com.rafadevgg.cm.modelo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-public class Tabuleiro {
+public class Tabuleiro implements CampoObserver {
 
-    private int linhas;
-    private int colunas;
-    private int minas;
+    private final int linhas;
+    private final int colunas;
+    private final int minas;
     private final List<Campo> campos = new ArrayList<>();
+    private final List<Consumer<EventResult>> observers = new ArrayList<>();
 
     public Tabuleiro(int linhas, int colunas, int minas) {
         this.linhas = linhas;
@@ -21,17 +23,29 @@ public class Tabuleiro {
         sortearMinas();
     }
 
+    public void forOne(Consumer<Campo> funcao) {
+        campos.forEach(funcao);
+    }
+
+    public void registerObserver(Consumer<EventResult> observer) {
+        observers.add(observer);
+    }
+
+    private void notify(boolean result) {
+        observers.stream().forEach(o -> o.accept(new EventResult(result)));
+    }
+
     public void abrir(int linha, int coluna) {
-        try {
-            campos.parallelStream()
-                    .filter(c -> c.getLinha() == linha && c.getColuna() == coluna)
-                    .findFirst()
-                    .ifPresent(c -> c.abrir());
-        } catch (Exception e) {
-            // FIXME Ajustar a implementação
-            campos.forEach(c -> c.setAberto(true));
-            throw e;
-        }
+        campos.parallelStream()
+                .filter(c -> c.getLinha() == linha && c.getColuna() == coluna)
+                .findFirst()
+                .ifPresent(c -> c.abrir());
+    }
+
+    private void showMinas() {
+        campos.stream()
+                .filter(Campo::isMinado)
+                .forEach(c -> c.setAberto(true));
     }
 
     public void alternarMarcacao(int linha, int coluna) {
@@ -44,7 +58,9 @@ public class Tabuleiro {
     private void gerarCampos() {
         for (int linha = 0; linha < linhas; linha++) {
             for (int coluna = 0; coluna < colunas; coluna++) {
-                campos.add(new Campo(linha, coluna));
+                Campo campo = new Campo(linha, coluna);
+                campo.registerObserver(this);
+                campos.add(campo);
             }
         }
     }
@@ -75,6 +91,29 @@ public class Tabuleiro {
     public void reiniciar() {
         campos.stream().forEach(Campo::reiniciar);
         sortearMinas();
+    }
+
+    @Override
+    public void eventoOcorreu(Campo campo, CampoEvent campoEvent) {
+        if (campoEvent == CampoEvent.EXPLODIR) {
+            showMinas();
+            notify(false);
+        } else if (objetivoAlcancado()) {
+            System.out.println("Ganhou...");
+            notify(true);
+        }
+    }
+
+    public int getLinhas() {
+        return linhas;
+    }
+
+    public int getColunas() {
+        return colunas;
+    }
+
+    public int getMinas() {
+        return minas;
     }
 
 }
