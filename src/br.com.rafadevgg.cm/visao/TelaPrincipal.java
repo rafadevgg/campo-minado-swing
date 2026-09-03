@@ -22,7 +22,6 @@ public class TelaPrincipal extends JFrame {
 
         new TelaPrincipal();
 
-
     }
 
 }
